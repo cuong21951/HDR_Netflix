@@ -93,7 +93,7 @@ This repo includes a GitHub Actions workflow. To publish a public Windows exe:
 
 ```powershell
 git tag v0.1.0
-git push origin master --tags
+git push origin main --tags
 ```
 
 The workflow builds `HDRNetflix.exe` on Windows and attaches it to the GitHub Release.
@@ -103,3 +103,7 @@ The workflow builds `HDRNetflix.exe` on Windows and attaches it to the GitHub Re
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
 ```
+
+## License
+
+Licensed under the [MIT License](LICENSE).
