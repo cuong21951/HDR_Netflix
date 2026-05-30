@@ -79,9 +79,19 @@ pub fn list_targets() -> Result<Vec<DisplayTarget>, String> {
         let mut targets = Vec::new();
         for path in paths.into_iter().take(path_count as usize) {
             let target = path.targetInfo;
-            let key = target_key(target.adapterId, target.id);
+            let info = get_target_info(target.adapterId, target.id);
+            // Use a key that survives reboots. The adapter LUID is regenerated
+            // on every boot, so a LUID-based key would not match saved config
+            // after a restart. monitorDevicePath is stable across reboots.
+            let key = info
+                .as_ref()
+                .map(|info| info.device_path.trim())
+                .filter(|path| !path.is_empty())
+                .map(stable_key)
+                .unwrap_or_else(|| fallback_key(target.adapterId, target.id));
             if seen.insert(key.clone()) {
-                let name = get_target_name(target.adapterId, target.id)
+                let name = info
+                    .map(|info| info.friendly_name)
                     .filter(|name| !name.trim().is_empty())
                     .unwrap_or_else(|| format!("Display {}", targets.len() + 1));
                 targets.push(DisplayTarget {
@@ -166,7 +176,12 @@ fn get_status(target: DisplayTarget) -> Result<AdvancedColorStatus, String> {
     })
 }
 
-fn get_target_name(adapter_id: LUID, target_id: u32) -> Option<String> {
+struct TargetInfo {
+    friendly_name: String,
+    device_path: String,
+}
+
+fn get_target_info(adapter_id: LUID, target_id: u32) -> Option<TargetInfo> {
     let mut name = DISPLAYCONFIG_TARGET_DEVICE_NAME {
         header: DISPLAYCONFIG_DEVICE_INFO_HEADER {
             r#type: DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME,
@@ -182,7 +197,10 @@ fn get_target_name(adapter_id: LUID, target_id: u32) -> Option<String> {
         return None;
     }
 
-    Some(wide_array_to_string(&name.monitorFriendlyDeviceName))
+    Some(TargetInfo {
+        friendly_name: wide_array_to_string(&name.monitorFriendlyDeviceName),
+        device_path: wide_array_to_string(&name.monitorDevicePath),
+    })
 }
 
 fn set_hdr(target: &DisplayTarget, enable: bool) -> Result<(), String> {
@@ -207,9 +225,23 @@ fn set_hdr(target: &DisplayTarget, enable: bool) -> Result<(), String> {
     }
 }
 
-fn target_key(adapter_id: LUID, target_id: u32) -> String {
+/// Stable, reboot-safe key derived from the monitor device path.
+/// FNV-1a so the value is deterministic across runs and platforms,
+/// and TOML-safe (hex only, no backslashes from the raw device path).
+fn stable_key(device_path: &str) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in device_path.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("{hash:016x}")
+}
+
+/// Used only when the device path is unavailable (e.g. some virtual displays).
+/// Not stable across reboots, but better than nothing for that session.
+fn fallback_key(adapter_id: LUID, target_id: u32) -> String {
     format!(
-        "{}:{}:{}",
+        "luid:{}:{}:{}",
         adapter_id.HighPart, adapter_id.LowPart, target_id
     )
 }

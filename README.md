@@ -74,7 +74,7 @@ First run creates:
 %LOCALAPPDATA%\HDRNetflix\config.toml
 ```
 
-You can also edit the config file manually. Run `HDRNetflix.exe --status`, copy the target key, and put it in `selected_targets`.
+You can also edit the config file manually. Run `HDRNetflix.exe --status`, copy the target key, and put it in `selected_targets`. Target keys are stable across reboots.
 
 Example:
 
@@ -82,10 +82,16 @@ Example:
 auto_enabled = true
 poll_interval_ms = 1500
 turn_off_when_netflix_closes = true
-selected_targets = ["123:456:0"]
+selected_targets = ["a1b2c3d4e5f60718"]
 process_names = ["Netflix.exe"]
 detect_window_titles = true
 ```
+
+> Upgrading from a build before this fix? Display keys were previously derived
+> from the adapter LUID, which Windows regenerates on every boot, so saved
+> selections did not survive a restart. Re-pick your displays once from
+> `HDR displays` in the tray menu (or clear `selected_targets` to control all
+> HDR-capable displays). New keys are reboot-stable.
 
 ## Publish A Release
 
